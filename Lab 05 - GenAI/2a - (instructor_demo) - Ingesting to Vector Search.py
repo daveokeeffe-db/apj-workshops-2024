@@ -146,11 +146,10 @@ index.describe()
 
 results = index.similarity_search(
   columns=["page_content"],
-  # vs_index_fullname,
   query_text="Tell me about tuning LLMs",
   num_results=3
   )
 
 # COMMAND ----------
 
-
+display(results["result"]["data_array"])

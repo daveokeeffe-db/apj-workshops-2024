@@ -8,7 +8,8 @@
 # COMMAND ----------
 
 # DBTITLE 1,Library Setup
-# MAGIC %pip install mlflow==2.11.1 llama_index==0.10.17 langchain==0.1.10
+# MAGIC %pip install mlflow llama_index==0.10.17 langchain==0.1.10
+
 # COMMAND ----------
 
 dbutils.library.restartPython()
@@ -44,11 +45,13 @@ pipe = ChatDatabricks(
 prompt = "The sky is"
 output = pipe([HumanMessage(content=prompt)], max_tokens=100)
 str_output = print(output.content)
+
 # COMMAND ----------
 
 prompt = "Knock Knock"
 output = pipe([HumanMessage(content=prompt)], max_tokens=100)
 str_output = print(output.content)
+
 # COMMAND ----------
 
 prompt = """
@@ -58,6 +61,7 @@ prompt = """
 
 output = pipe([HumanMessage(content=prompt)], max_tokens=100)
 str_output = print(output.content)
+
 # COMMAND ----------
 
 # MAGIC %md
@@ -75,6 +79,7 @@ prompt = """
 
 output = pipe([HumanMessage(content=prompt)], max_tokens=100)
 str_output = print(output.content)
+
 # COMMAND ----------
 
 # MAGIC %md
@@ -113,6 +118,7 @@ Answer: [/INST]
 
 output = pipe([HumanMessage(content=prompt)], max_tokens=100)
 str_output = print(output.content)
+
 # COMMAND ----------
 
 # MAGIC %md
@@ -138,6 +144,7 @@ What account would you recommend a small business?[/INST]
 
 output = pipe([HumanMessage(content=prompt)], max_tokens=100)
 str_output = print(output.content)
+
 # COMMAND ----------
 
 prompt = """
@@ -404,6 +411,7 @@ def eval_pipe(inputs):
         answers.append(answer)
     
     return answers
+
 # COMMAND ----------
 
 model = 'databricks-mixtral-8x7b-instruct'

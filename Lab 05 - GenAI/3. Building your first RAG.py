@@ -1,12 +1,12 @@
 # Databricks notebook source
 # MAGIC %md # Building your first RAG
-# MAGIC 
+# MAGIC
 # MAGIC This is a notebook to create your first RAG Application
 
 # COMMAND ----------
 
-%pip install -U langchain==0.1.10 sqlalchemy==2.0.27 pypdf==4.1.0 mlflow==2.11.0 databricks-vectorsearch 
-dbutils.library.restartPython()
+# MAGIC %pip install -U langchain==0.1.10 sqlalchemy==2.0.27 pypdf==4.1.0 mlflow databricks-vectorsearch 
+# MAGIC dbutils.library.restartPython()
 
 # COMMAND ----------
 
@@ -99,13 +99,135 @@ prompt_template = ChatPromptTemplate.from_messages([
 stuff_documents_chain = create_stuff_documents_chain(chat, prompt_template)
 
 retrieval_chain = create_retrieval_chain(retriever_chain, stuff_documents_chain)
+
 # COMMAND ----------
+
+stuff_documents_chain
+
+# COMMAND ----------
+
+retrieval_chain
+
+# COMMAND ----------
+
 # Testing stuff chain
-retrieval_chain.invoke({"chat_history": [], 
-                              "input": "Tell me about tuning LLMs", 
-                              "context": ""})
+retrieval_chain.invoke(
+  {
+    "chat_history": [], 
+    "input": "Tell me about tuning LLMs", 
+    "context": "",
+  }
+)["answer"]
 
 # COMMAND ----------
 
 # MAGIC %md ## MLFlow Logging
+# MAGIC
 
+# COMMAND ----------
+
+def model(input_df):
+    answer = []
+    for index, row in input_df.iterrows():
+        answer.append(
+            retrieval_chain.invoke(
+                {
+                    "chat_history": [], 
+                    "input": row["questions"], 
+                    "context": ""
+                }
+            )["answer"]
+        )
+    return answer
+
+# COMMAND ----------
+
+import pandas as pd
+import mlflow
+
+# COMMAND ----------
+
+eval_df = pd.DataFrame(
+    {
+        "questions": [
+            "What is a LLM?",
+            "How to run mlflow.evaluate()?",
+            "How to log_table()?",
+            "How to load_table()?",
+        ],
+        "context": [
+            "",
+            "",
+            "",
+            "",
+        ],
+    }
+)
+
+# COMMAND ----------
+
+from mlflow.metrics.genai import EvaluationExample, faithfulness
+
+# Create a good and bad example for faithfulness in the context of this problem
+faithfulness_examples = [
+    EvaluationExample(
+        input="What is a LLM?",
+        output="mlflow.autolog(disable=True) will disable autologging for all functions. In Databricks, autologging is enabled by default. ",
+        score=2,
+        justification="The output provides a working solution, using the mlflow.autolog() function that is provided in the context.",
+        grading_context={
+            "context": "mlflow.autolog(log_input_examples: bool = False, log_model_signatures: bool = True, log_models: bool = True, log_datasets: bool = True, disable: bool = False, exclusive: bool = False, disable_for_unsupported_versions: bool = False, silent: bool = False, extra_tags: Optional[Dict[str, str]] = None) → None[source] Enables (or disables) and configures autologging for all supported integrations. The parameters are passed to any autologging integrations that support them. See the tracking docs for a list of supported autologging integrations. Note that framework-specific configurations set at any point will take precedence over any configurations set by this function."
+        },
+    ),
+    EvaluationExample(
+        input="How do I disable MLflow autologging?",
+        output="mlflow.autolog(disable=True) will disable autologging for all functions.",
+        score=5,
+        justification="The output provides a solution that is using the mlflow.autolog() function that is provided in the context.",
+        grading_context={
+            "context": "mlflow.autolog(log_input_examples: bool = False, log_model_signatures: bool = True, log_models: bool = True, log_datasets: bool = True, disable: bool = False, exclusive: bool = False, disable_for_unsupported_versions: bool = False, silent: bool = False, extra_tags: Optional[Dict[str, str]] = None) → None[source] Enables (or disables) and configures autologging for all supported integrations. The parameters are passed to any autologging integrations that support them. See the tracking docs for a list of supported autologging integrations. Note that framework-specific configurations set at any point will take precedence over any configurations set by this function."
+        },
+    ),
+]
+
+faithfulness_metric = faithfulness(
+    model="endpoints:/databricks-llama-2-70b-chat", examples=faithfulness_examples
+)
+print(faithfulness_metric)
+
+
+# COMMAND ----------
+
+from mlflow.metrics.genai import EvaluationExample, relevance
+
+relevance_metric = relevance(model="endpoints:/databricks-llama-2-70b-chat")
+print(relevance_metric)
+
+
+# COMMAND ----------
+
+results = mlflow.evaluate(
+    model,
+    eval_df,
+    model_type="question-answering",
+    evaluators="default",
+    predictions="result",
+    extra_metrics=[faithfulness_metric, relevance_metric, mlflow.metrics.latency()],
+    evaluator_config={
+        "col_mapping": {
+            "inputs": "questions",
+            "context": "context",
+        }
+    },
+)
+print(results.metrics)
+
+
+# COMMAND ----------
+
+results.tables["eval_results_table"]
+
+
+# COMMAND ----------
+
+results.tables["eval_results_table"]["outputs"][0]
