@@ -6,14 +6,14 @@
 
 # COMMAND ----------
 
-# MAGIC # last tested with 0.23 of the databricks-vectorsearch client
-# MAGIC %pip install --upgrade --force-reinstall databricks-vectorsearch
-# MAGIC dbutils.library.restartPython()
+# last tested with 0.23 of the databricks-vectorsearch client
+%pip install --upgrade --force-reinstall databricks-vectorsearch
+dbutils.library.restartPython()
 
 # COMMAND ----------
 
 # DBTITLE 1,Configuration Parameters
-vsc_endpoint_name = 'workshop-vs-endpoint'
+vsc_endpoint_name = 'one-env-shared-endpoint-1'
 
 db_catalog = 'gen_ai_catalog'
 db_schema = 'lab_05'
@@ -56,6 +56,7 @@ spark.sql(f"CREATE VOLUME IF NOT EXISTS {db_catalog}.{db_schema}.{volume_name}")
 volume_folder = f'/Volumes/{db_catalog}/{db_schema}/{volume_name}/'
 
 # COMMAND ----------
+
 import os
 import requests
 user_agent = "me-me-me"

@@ -1,5 +1,5 @@
 # Databricks notebook source
-# MAGIC %pip install --upgrade --force-reinstall databricks-vectorsearch langchain==0.1.10 sqlalchemy==2.0.27 pypdf==4.1.0 
+# MAGIC %pip install --upgrade --force-reinstall databricks-vectorsearch langchain==0.1.13 sqlalchemy==2.0.27 pypdf==4.1.0 
 # MAGIC dbutils.library.restartPython()
 
 # COMMAND ----------
@@ -17,7 +17,7 @@ source_schema = "lab_05"
 source_volume = "source_files"
 
 source_table = "arxiv_parse"
-vs_endpoint = "workshop-vs-endpoint"
+vs_endpoint = "one-env-shared-endpoint-1"
 embedding_endpoint_name = "databricks-bge-large-en"
 
 # COMMAND ----------

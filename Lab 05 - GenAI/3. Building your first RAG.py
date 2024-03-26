@@ -5,7 +5,7 @@
 
 # COMMAND ----------
 
-# MAGIC %pip install -U langchain==0.1.10 sqlalchemy==2.0.27 pypdf==4.1.0 mlflow databricks-vectorsearch 
+# MAGIC %pip install -U langchain==0.1.13 sqlalchemy==2.0.27 pypdf==4.1.0 mlflow databricks-vectorsearch gradio requests
 # MAGIC dbutils.library.restartPython()
 
 # COMMAND ----------
@@ -15,7 +15,7 @@ db_catalog = 'gen_ai_catalog'
 db_schema = 'lab_05'
 db_table = "arxiv_parse"
 
-endpoint_name = "workshop-vs-endpoint"
+endpoint_name = "one-env-shared-endpoint-1"
 vs_index = f"{db_table}_bge_index"
 vs_index_fullname = f"{db_catalog}.{db_schema}.{vs_index}"
 
@@ -46,7 +46,7 @@ chat = ChatDatabricks(
 )
 
 # Test that it is working
-chat([HumanMessage(content="hello")])
+chat([HumanMessage(content="what is a llm?")])
 
 # COMMAND ----------
 
@@ -111,13 +111,18 @@ retrieval_chain
 # COMMAND ----------
 
 # Testing stuff chain
-retrieval_chain.invoke(
-  {
-    "chat_history": [], 
-    "input": "Tell me about tuning LLMs", 
-    "context": "",
-  }
-)["answer"]
+def rag_chat(input_text):
+  return retrieval_chain.invoke(
+    {
+      "chat_history": [], 
+      "input": input_text, 
+      "context": "",
+    }
+  )["answer"]
+
+# COMMAND ----------
+
+rag_chat("what is a llm?")
 
 # COMMAND ----------
 
@@ -134,7 +139,7 @@ def model(input_df):
                 {
                     "chat_history": [], 
                     "input": row["questions"], 
-                    "context": ""
+                    "context": row["context"],
                 }
             )["answer"]
         )
@@ -151,9 +156,9 @@ eval_df = pd.DataFrame(
     {
         "questions": [
             "What is a LLM?",
-            "How to run mlflow.evaluate()?",
-            "How to log_table()?",
-            "How to load_table()?",
+            "Tell me about tuning LLMs",
+            "What is Flava?",
+            "Why should I compress an LLM?",
         ],
         "context": [
             "",
@@ -172,20 +177,20 @@ from mlflow.metrics.genai import EvaluationExample, faithfulness
 faithfulness_examples = [
     EvaluationExample(
         input="What is a LLM?",
-        output="mlflow.autolog(disable=True) will disable autologging for all functions. In Databricks, autologging is enabled by default. ",
-        score=2,
-        justification="The output provides a working solution, using the mlflow.autolog() function that is provided in the context.",
+        output="An LLM, or Master of Laws, is an advanced, postgraduate academic degree in law. It's typically pursued by students who already hold a first degree in law, such as a Bachelor of Laws (LLB) or a Juris Doctor (JD). The LLM usually focuses on a specific area of law, allowing students to gain expertise and enhance their professional skills. Some common LLM specializations include international law, tax law, corporate law, and human rights law. The duration of an LLM program can vary but is usually one to two years of full-time study.",
+        score=1,
+        justification="The output says an LLM is an academic degree in law, but it's meant to be in reference to Large Language Models",
         grading_context={
-            "context": "mlflow.autolog(log_input_examples: bool = False, log_model_signatures: bool = True, log_models: bool = True, log_datasets: bool = True, disable: bool = False, exclusive: bool = False, disable_for_unsupported_versions: bool = False, silent: bool = False, extra_tags: Optional[Dict[str, str]] = None) → None[source] Enables (or disables) and configures autologging for all supported integrations. The parameters are passed to any autologging integrations that support them. See the tracking docs for a list of supported autologging integrations. Note that framework-specific configurations set at any point will take precedence over any configurations set by this function."
+            "context": ""
         },
     ),
     EvaluationExample(
-        input="How do I disable MLflow autologging?",
+        input="What is a LLM?",
         output="mlflow.autolog(disable=True) will disable autologging for all functions.",
         score=5,
         justification="The output provides a solution that is using the mlflow.autolog() function that is provided in the context.",
         grading_context={
-            "context": "mlflow.autolog(log_input_examples: bool = False, log_model_signatures: bool = True, log_models: bool = True, log_datasets: bool = True, disable: bool = False, exclusive: bool = False, disable_for_unsupported_versions: bool = False, silent: bool = False, extra_tags: Optional[Dict[str, str]] = None) → None[source] Enables (or disables) and configures autologging for all supported integrations. The parameters are passed to any autologging integrations that support them. See the tracking docs for a list of supported autologging integrations. Note that framework-specific configurations set at any point will take precedence over any configurations set by this function."
+            "context": ""
         },
     ),
 ]
@@ -193,16 +198,12 @@ faithfulness_examples = [
 faithfulness_metric = faithfulness(
     model="endpoints:/databricks-llama-2-70b-chat", examples=faithfulness_examples
 )
-print(faithfulness_metric)
-
 
 # COMMAND ----------
 
 from mlflow.metrics.genai import EvaluationExample, relevance
 
 relevance_metric = relevance(model="endpoints:/databricks-llama-2-70b-chat")
-print(relevance_metric)
-
 
 # COMMAND ----------
 
@@ -220,14 +221,30 @@ results = mlflow.evaluate(
         }
     },
 )
-print(results.metrics)
-
 
 # COMMAND ----------
 
-results.tables["eval_results_table"]
+results.tables["eval_results_table"]["outputs"]
 
 
 # COMMAND ----------
 
 results.tables["eval_results_table"]["outputs"][0]
+
+# COMMAND ----------
+
+import gradio as gr
+
+# COMMAND ----------
+
+iface = gr.Interface(
+    fn=rag_chat,
+    inputs=gr.Textbox(label='Question'),
+    outputs=gr.Textbox(label='Response'),
+    title="Databricks Serving Endpoint Demo",
+    description="Enter your question and click Submit to make a prediction",
+    theme="freddyaboulton/dracula_revamped" #huggingface template
+)
+
+# Launch the Gradio interface
+iface.launch(share=True, debug=True) # for some reason need to run in debug mode to work
