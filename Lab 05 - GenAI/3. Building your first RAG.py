@@ -5,7 +5,7 @@
 
 # COMMAND ----------
 
-# MAGIC %pip install -U langchain==0.1.13 sqlalchemy==2.0.27 pypdf==4.1.0 mlflow databricks-vectorsearch gradio requests
+# MAGIC %pip install -U langchain==0.1.13 sqlalchemy==2.0.27 pypdf==4.1.0 mlflow==2.10 databricks-vectorsearch gradio requests
 # MAGIC dbutils.library.restartPython()
 
 # COMMAND ----------
@@ -46,7 +46,7 @@ chat = ChatDatabricks(
 )
 
 # Test that it is working
-chat([HumanMessage(content="what is a llm?")])
+chat([HumanMessage(content="What is a LLM?")])
 
 # COMMAND ----------
 
@@ -88,8 +88,7 @@ prompt_template = ChatPromptTemplate.from_messages([
          </context> 
          
          <instructions>
-         - Focus your answers based on the context but provide additional helpful notes from your background knowledge caveat those notes though.
-         - If the context does not seem relevant to the answer say as such as well.
+         - Focus your answers based on the context but provide additional helpful notes from your background knowledge.
          </instructions>
          """),
         MessagesPlaceholder(variable_name="chat_history"),
@@ -102,27 +101,19 @@ retrieval_chain = create_retrieval_chain(retriever_chain, stuff_documents_chain)
 
 # COMMAND ----------
 
-stuff_documents_chain
-
-# COMMAND ----------
-
-retrieval_chain
-
-# COMMAND ----------
-
 # Testing stuff chain
-def rag_chat(input_text):
+def rag_chat(input_text, chat_history=[], context=""):
   return retrieval_chain.invoke(
     {
-      "chat_history": [], 
+      "chat_history": chat_history, 
       "input": input_text, 
-      "context": "",
+      "context": context,
     }
   )["answer"]
 
 # COMMAND ----------
 
-rag_chat("what is a llm?")
+rag_chat("What is a LLM?", context="An LLM is a Large Language Model")
 
 # COMMAND ----------
 
@@ -173,37 +164,62 @@ eval_df = pd.DataFrame(
 
 from mlflow.metrics.genai import EvaluationExample, faithfulness
 
-# Create a good and bad example for faithfulness in the context of this problem
-faithfulness_examples = [
-    EvaluationExample(
-        input="What is a LLM?",
-        output="An LLM, or Master of Laws, is an advanced, postgraduate academic degree in law. It's typically pursued by students who already hold a first degree in law, such as a Bachelor of Laws (LLB) or a Juris Doctor (JD). The LLM usually focuses on a specific area of law, allowing students to gain expertise and enhance their professional skills. Some common LLM specializations include international law, tax law, corporate law, and human rights law. The duration of an LLM program can vary but is usually one to two years of full-time study.",
-        score=1,
-        justification="The output says an LLM is an academic degree in law, but it's meant to be in reference to Large Language Models",
-        grading_context={
-            "context": ""
-        },
+professionalism_example_score_2 = mlflow.metrics.genai.EvaluationExample(
+    input="What is MLflow?",
+    output=(
+        "MLflow is like your friendly neighborhood toolkit for managing your machine learning projects. It helps "
+        "you track experiments, package your code and models, and collaborate with your team, making the whole ML "
+        "workflow smoother. It's like your Swiss Army knife for machine learning!"
     ),
-    EvaluationExample(
-        input="What is a LLM?",
-        output="mlflow.autolog(disable=True) will disable autologging for all functions.",
-        score=5,
-        justification="The output provides a solution that is using the mlflow.autolog() function that is provided in the context.",
-        grading_context={
-            "context": ""
-        },
+    score=2,
+    justification=(
+        "The response is written in a casual tone. It uses contractions, filler words such as 'like', and "
+        "exclamation points, which make it sound less professional. "
     ),
-]
+)
+professionalism_example_score_4 = mlflow.metrics.genai.EvaluationExample(
+    input="What is MLflow?",
+    output=(
+        "MLflow is an open-source platform for managing the end-to-end machine learning (ML) lifecycle. It was "
+        "developed by Databricks, a company that specializes in big data and machine learning solutions. MLflow is "
+        "designed to address the challenges that data scientists and machine learning engineers face when "
+        "developing, training, and deploying machine learning models.",
+    ),
+    score=4,
+    justification=("The response is written in a formal language and a neutral tone. "),
+)
 
-faithfulness_metric = faithfulness(
-    model="endpoints:/databricks-llama-2-70b-chat", examples=faithfulness_examples
+professionalism = mlflow.metrics.genai.make_genai_metric(
+    name="professionalism",
+    definition=(
+        "Professionalism refers to the use of a formal, respectful, and appropriate style of communication that is "
+        "tailored to the context and audience. It often involves avoiding overly casual language, slang, or "
+        "colloquialisms, and instead using clear, concise, and respectful language."
+    ),
+    grading_prompt=(
+        "Professionalism: If the answer is written using a professional tone, below are the details for different scores: "
+        "- Score 0: Language is extremely casual, informal, and may include slang or colloquialisms. Not suitable for "
+        "professional contexts."
+        "- Score 1: Language is casual but generally respectful and avoids strong informality or slang. Acceptable in "
+        "some informal professional settings."
+        "- Score 2: Language is overall formal but still have casual words/phrases. Borderline for professional contexts."
+        "- Score 3: Language is balanced and avoids extreme informality or formality. Suitable for most professional contexts. "
+        "- Score 4: Language is noticeably formal, respectful, and avoids casual elements. Appropriate for formal "
+        "business or academic settings. "
+    ),
+    examples=[professionalism_example_score_2, professionalism_example_score_4],
+    model="endpoints:/azure-openai-gpt4",
+    parameters={"temperature": 0.0},
+    aggregations=["mean", "variance"],
+    greater_is_better=True,
 )
 
 # COMMAND ----------
 
 from mlflow.metrics.genai import EvaluationExample, relevance
 
-relevance_metric = relevance(model="endpoints:/databricks-llama-2-70b-chat")
+relevance_metric = relevance(model="endpoints:/azure-openai-gpt4")
+endpoint_type = "llm/v1/completions"
 
 # COMMAND ----------
 
@@ -213,7 +229,7 @@ results = mlflow.evaluate(
     model_type="question-answering",
     evaluators="default",
     predictions="result",
-    extra_metrics=[faithfulness_metric, relevance_metric, mlflow.metrics.latency()],
+    extra_metrics=[professionalism, relevance_metric, mlflow.metrics.latency()],
     evaluator_config={
         "col_mapping": {
             "inputs": "questions",
@@ -224,12 +240,12 @@ results = mlflow.evaluate(
 
 # COMMAND ----------
 
-results.tables["eval_results_table"]["outputs"]
+results.tables["eval_results_table"]
 
 
 # COMMAND ----------
 
-results.tables["eval_results_table"]["outputs"][0]
+results.tables["eval_results_table"]["faithfulness/v1/justification"][0]
 
 # COMMAND ----------
 
