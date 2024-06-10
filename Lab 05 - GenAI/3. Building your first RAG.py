@@ -162,7 +162,7 @@ eval_df = pd.DataFrame(
 
 # COMMAND ----------
 
-from mlflow.metrics.genai import EvaluationExample, faithfulness
+from mlflow.metrics.genai import EvaluationExample
 
 professionalism_example_score_2 = mlflow.metrics.genai.EvaluationExample(
     input="What is MLflow?",
@@ -190,9 +190,9 @@ professionalism_example_score_4 = mlflow.metrics.genai.EvaluationExample(
 )
 
 professionalism = mlflow.metrics.genai.make_genai_metric(
-    name="professionalism",
+    name="healthiness",
     definition=(
-        "Professionalism refers to the use of a formal, respectful, and appropriate style of communication that is "
+        "Professionalism refers to the use of a formal, respectful, and appropriate style of communication that is"
         "tailored to the context and audience. It often involves avoiding overly casual language, slang, or "
         "colloquialisms, and instead using clear, concise, and respectful language."
     ),
@@ -240,27 +240,18 @@ results = mlflow.evaluate(
 
 # COMMAND ----------
 
+results.__dict__
+
+# COMMAND ----------
+
 results.tables["eval_results_table"]
 
 
 # COMMAND ----------
 
-results.tables["eval_results_table"]["faithfulness/v1/justification"][0]
-
-# COMMAND ----------
-
-import gradio as gr
-
-# COMMAND ----------
-
-iface = gr.Interface(
-    fn=rag_chat,
-    inputs=gr.Textbox(label='Question'),
-    outputs=gr.Textbox(label='Response'),
-    title="Databricks Serving Endpoint Demo",
-    description="Enter your question and click Submit to make a prediction",
-    theme="freddyaboulton/dracula_revamped" #huggingface template
-)
-
-# Launch the Gradio interface
-iface.launch(share=True, debug=True) # for some reason need to run in debug mode to work
+import mlflow
+catalog = "main"
+schema = "default"
+model_name = "my_model"
+mlflow.set_registry_uri("databricks-uc")
+mlflow.register_model("runs:/ec42300abad44bb6b9856f34edd99e29/model", f"{db_catalog}.{db_schema}.{model_name}")
